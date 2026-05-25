@@ -68,6 +68,7 @@ The GitHub sync only uploads valid repository secrets; `GITHUB_PAT` stays reserv
 ### 4. Bot Registration
 - Locally, set up a `.env` in the `/bot` folder.
 - Run `npm install` and then `npm run register` to register slash commands.
+- In GitHub Actions, the bot workflow now runs command registration automatically before startup.
 
 ---
 

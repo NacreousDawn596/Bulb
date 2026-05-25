@@ -23,6 +23,14 @@ jobs:
         run: npm install
         working-directory: bot
 
+      - name: Register Slash Commands
+        run: npm run register
+        working-directory: bot
+        env:
+          BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
+          CLIENT_ID: ${{ secrets.CLIENT_ID }}
+          GUILD_ID: ${{ secrets.GUILD_ID }}
+
       - name: Run Bot
         run: npm start
         working-directory: bot
