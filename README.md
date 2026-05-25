@@ -1,4 +1,4 @@
-# 👻 Undead Bot System
+# 👻 Bulb
 
 A production-grade, self-resurrecting Discord bot system designed to run on ephemeral compute (GitHub Actions) while maintaining persistent state and "immortal" uptime.
 
