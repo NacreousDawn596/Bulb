@@ -28,7 +28,12 @@ A production-grade, self-resurrecting Discord bot system designed to run on ephe
 
 ### 2. GitHub Setup
 - Create a **Personal Access Token (PAT)** with `workflow` scope.
-- In your repository, go to **Settings > Secrets and variables > Actions** and add all secrets listed in `ENV_GUIDE.md`.
+- `GITHUB_PAT` is used by the Fly.io reviver service and should stay out of GitHub repo secrets because GitHub forbids secret names that start with `GITHUB_`.
+- You can sync secrets automatically from `.env`:
+  ```bash
+  chmod +x scripts/sync-secrets.sh
+  ./scripts/sync-secrets.sh --github-only
+  ```
 
 ### 3. Fly.io Setup (Reviver Service)
 - Install Fly CLI: `curl -L https://fly.io/install.sh | sh`
@@ -37,11 +42,28 @@ A production-grade, self-resurrecting Discord bot system designed to run on ephe
   cd reviver
   fly launch # Follow prompts, name it undead-bot-reviver
   ```
-- Set required secrets on Fly:
+- Sync required secrets from `.env`:
   ```bash
-  fly secrets set GITHUB_PAT="..." GITHUB_OWNER="..." GITHUB_REPO="..." GITHUB_WORKFLOW="bot.yml" REVIVER_SECRET="..."
+  ./scripts/sync-secrets.sh --fly-only
   ```
+- This pushes `GITHUB_PAT`, `GITHUB_OWNER`, `GITHUB_REPO`, `GITHUB_WORKFLOW`, and `REVIVER_SECRET` to Fly.
 - Deploy: `fly deploy`
+
+### 3.1 One-shot sync (GitHub + Fly)
+From repo root:
+
+```bash
+chmod +x scripts/sync-secrets.sh
+./scripts/sync-secrets.sh
+```
+
+Optional flags:
+- `--env-file path/to/.env`
+- `--repo owner/repo`
+- `--fly-app app-name`
+- `--dry-run`
+
+The GitHub sync only uploads valid repository secrets; `GITHUB_PAT` stays reserved for Fly.io.
 
 ### 4. Bot Registration
 - Locally, set up a `.env` in the `/bot` folder.

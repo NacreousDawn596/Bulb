@@ -19,7 +19,7 @@
 - `D1_ACCOUNT_ID`: Cloudflare Account ID
 
 ### GitHub
-- `GITHUB_PAT`: Personal Access Token (with workflow permission)
+- `GITHUB_PAT`: Personal Access Token (with workflow permission). This is used by the Fly.io reviver, not synced into GitHub repo secrets.
 - `GITHUB_OWNER`: GitHub Username/Org
 - `GITHUB_REPO`: Repository Name
 - `GITHUB_WORKFLOW`: Workflow filename (e.g., bot.yml)
