@@ -1,0 +1,26 @@
+{
+  "name": "undead-bot-platform",
+  "version": "2.0.0",
+  "private": true,
+  "description": "Multi-bot orchestration platform for Discord bots on Bun, Eris, GitHub Actions, Fly.io, Cloudflare D1, and R2.",
+  "packageManager": "bun@1.3.13",
+  "workspaces": [
+    "reviver"
+  ],
+  "scripts": {
+    "start": "bun run src/index.ts",
+    "start:runtime": "bun run src/index.ts",
+    "start:reviver": "bun run reviver/src/server.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.822.0",
+    "dotenv": "^16.6.1",
+    "elysia": "^1.4.16",
+    "eris": "^0.18.0"
+  },
+  "devDependencies": {
+    "bun-types": "^1.3.13",
+    "typescript": "^5.9.3"
+  }
+}

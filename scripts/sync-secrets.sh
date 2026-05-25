@@ -8,11 +8,9 @@ FLY_APP=""
 DO_GITHUB=true
 DO_FLY=true
 DRY_RUN=false
+LOADED_ENV_KEYS=()
 
 GH_SECRET_KEYS=(
-  BOT_TOKEN
-  CLIENT_ID
-  GUILD_ID
   R2_ENDPOINT
   R2_ACCESS_KEY_ID
   R2_SECRET_ACCESS_KEY
@@ -25,10 +23,14 @@ GH_SECRET_KEYS=(
 )
 
 FLY_SECRET_KEYS=(
+  D1_DATABASE_ID
+  D1_API_TOKEN
+  D1_ACCOUNT_ID
   GITHUB_PAT
   GITHUB_OWNER
   GITHUB_REPO
   GITHUB_WORKFLOW
+  GITHUB_REF
   REVIVER_SECRET
 )
 
@@ -53,7 +55,7 @@ Requirements:
   - flyctl authenticated (`flyctl auth whoami`) when syncing Fly
 
 Note:
-  This script sources your .env file in a shell context.
+  This script parses .env as dotenv-style KEY=VALUE pairs.
 EOF
 }
 
@@ -89,6 +91,64 @@ infer_fly_app() {
     echo "Error: could not infer Fly app. Use --fly-app <name>." >&2
     exit 1
   fi
+}
+
+trim_whitespace() {
+  local value="$1"
+  value="${value#"${value%%[![:space:]]*}"}"
+  value="${value%"${value##*[![:space:]]}"}"
+  printf '%s' "$value"
+}
+
+append_unique_key() {
+  local key="$1"
+  local existing
+  for existing in "${GH_SECRET_KEYS[@]}"; do
+    if [[ "$existing" == "$key" ]]; then
+      return
+    fi
+  done
+  GH_SECRET_KEYS+=("$key")
+}
+
+load_env_file() {
+  local line key value
+
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    line="${line%$'\r'}"
+
+    if [[ -z "$(trim_whitespace "$line")" ]]; then
+      continue
+    fi
+
+    if [[ "$line" =~ ^[[:space:]]*# ]]; then
+      continue
+    fi
+
+    if [[ "$line" != *"="* ]]; then
+      echo "Warning: skipping non KEY=VALUE line in $ENV_FILE: $line" >&2
+      continue
+    fi
+
+    key="$(trim_whitespace "${line%%=*}")"
+    value="${line#*=}"
+
+    if [[ ! "$key" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]]; then
+      echo "Warning: skipping invalid env key in $ENV_FILE: $key" >&2
+      continue
+    fi
+
+    if [[ "$value" =~ ^\".*\"$ || "$value" =~ ^\'.*\'$ ]]; then
+      value="${value:1:${#value}-2}"
+    fi
+
+    export "$key=$value"
+    LOADED_ENV_KEYS+=("$key")
+
+    if [[ "$key" == BOT_* ]]; then
+      append_unique_key "$key"
+    fi
+  done < "$ENV_FILE"
 }
 
 while [[ $# -gt 0 ]]; do
@@ -141,10 +201,7 @@ if ! $DO_GITHUB && ! $DO_FLY; then
   exit 1
 fi
 
-set -a
-# shellcheck disable=SC1090
-source "$ENV_FILE"
-set +a
+load_env_file
 
 if $DO_GITHUB; then
   if ! $DRY_RUN; then

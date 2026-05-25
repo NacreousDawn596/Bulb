@@ -1,16 +1,12 @@
 {
-  "name": "bot-reviver",
-  "version": "1.0.0",
-  "description": "Fly.io service to revive the GitHub Actions bot",
-  "main": "server.js",
-  "scripts": {
-    "start": "node server.js"
-  },
+  "name": "@undead/reviver",
+  "version": "2.0.0",
+  "private": true,
   "dependencies": {
-    "express": "^4.19.2",
-    "dotenv": "^16.4.5"
+    "dotenv": "^16.6.1",
+    "elysia": "^1.4.16"
   },
-  "engines": {
-    "node": ">=20.0.0"
+  "scripts": {
+    "start": "bun run src/server.ts"
   }
 }

@@ -1,54 +1,64 @@
-name: Undead Bot Runner
+name: Undead Multi-Bot Runtime
 
 on:
   workflow_dispatch:
-    # Allows manual triggering and programmatic triggering via API
 
 jobs:
-  run-bot:
+  run-runtime:
     runs-on: ubuntu-latest
-    
+    concurrency:
+      group: undead-bot-runtime
+      cancel-in-progress: false
+
     steps:
-      - name: Checkout Repository
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
         with:
-          bun-version: latest
+          bun-version: 1.3.13
 
-      - name: Install Dependencies
+      - name: Restore Bun cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.bun/install/cache
+            node_modules
+            reviver/node_modules
+          key: ${{ runner.os }}-bun-${{ hashFiles('package.json', 'reviver/package.json', 'bun.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-bun-
+
+      - name: Install dependencies
         run: bun install
-        working-directory: bot
 
-      - name: Register Slash Commands
-        run: npm run register
-        working-directory: bot
-        env:
-          BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
-          CLIENT_ID: ${{ secrets.CLIENT_ID }}
-          GUILD_ID: ${{ secrets.GUILD_ID }}
-
-      - name: Run Bot
+      - name: Run multi-bot manager
         run: bun run start
-        working-directory: bot
         env:
-          BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
-          CLIENT_ID: ${{ secrets.CLIENT_ID }}
-          GUILD_ID: ${{ secrets.GUILD_ID }}
-          
+          BOT_BOT1_TOKEN: ${{ secrets.BOT_BOT1_TOKEN }}
+          BOT_BOT2_TOKEN: ${{ secrets.BOT_BOT2_TOKEN }}
+          BOT_BOT3_TOKEN: ${{ secrets.BOT_BOT3_TOKEN }}
+          BOT_BOT1_PREFIX: ${{ secrets.BOT_BOT1_PREFIX }}
+          BOT_BOT2_PREFIX: ${{ secrets.BOT_BOT2_PREFIX }}
+          BOT_BOT3_PREFIX: ${{ secrets.BOT_BOT3_PREFIX }}
+          BOT_BOT1_ENABLED: ${{ secrets.BOT_BOT1_ENABLED }}
+          BOT_BOT2_ENABLED: ${{ secrets.BOT_BOT2_ENABLED }}
+          BOT_BOT3_ENABLED: ${{ secrets.BOT_BOT3_ENABLED }}
+          BOT_BOT1_DISPLAY_NAME: ${{ secrets.BOT_BOT1_DISPLAY_NAME }}
+          BOT_BOT2_DISPLAY_NAME: ${{ secrets.BOT_BOT2_DISPLAY_NAME }}
+          BOT_BOT3_DISPLAY_NAME: ${{ secrets.BOT_BOT3_DISPLAY_NAME }}
+          BOT_BOT1_HELLO_MESSAGE: ${{ secrets.BOT_BOT1_HELLO_MESSAGE }}
+          BOT_BOT2_HELLO_MESSAGE: ${{ secrets.BOT_BOT2_HELLO_MESSAGE }}
+          BOT_BOT3_HELLO_MESSAGE: ${{ secrets.BOT_BOT3_HELLO_MESSAGE }}
           R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
           R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
           R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
           R2_BUCKET: ${{ secrets.R2_BUCKET }}
-          
           D1_DATABASE_ID: ${{ secrets.D1_DATABASE_ID }}
           D1_API_TOKEN: ${{ secrets.D1_API_TOKEN }}
           D1_ACCOUNT_ID: ${{ secrets.D1_ACCOUNT_ID }}
-          
           REVIVER_SECRET: ${{ secrets.REVIVER_SECRET }}
           REVIVER_URL: ${{ secrets.REVIVER_URL }}
+          BOT_STARTUP_DELAY_MS: ${{ secrets.BOT_STARTUP_DELAY_MS }}
+          BOT_AUTOSAVE_MS: ${{ secrets.BOT_AUTOSAVE_MS }}
