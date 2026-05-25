@@ -6,7 +6,6 @@ const { Client, GatewayIntentBits, Collection } = require('discord.js');
 const dotenv = require('dotenv');
 const fs = require('fs');
 const path = require('path');
-const os = require('os');
 
 const { loadCheckpoint, saveCheckpoint } = require('./checkpoint');
 const d1 = require('./d1');
@@ -15,7 +14,12 @@ const { triggerResurrection } = require('./utils/resurrection');
 dotenv.config();
 
 const client = new Client({
-  intents: [GatewayIntentBits.Guilds],
+  intents: [
+    GatewayIntentBits.Guilds,
+    GatewayIntentBits.GuildMessages,
+    GatewayIntentBits.MessageContent,
+    GatewayIntentBits.GuildMembers,
+  ],
 });
 
 // Bot Runtime State
@@ -44,6 +48,7 @@ for (const file of commandFiles) {
  */
 async function startup() {
   console.log('--- UNDEAD BOT STARTUP ---');
+  await d1.initD1();
   
   // 1. Load state from R2
   const savedState = await loadCheckpoint();
@@ -56,8 +61,6 @@ async function startup() {
     };
   } else {
     console.log('No checkpoint found. Initializing fresh state.');
-    // First boot ever? Initialize D1
-    await d1.initD1();
     await d1.setStat('first_boot_timestamp', Date.now().toString());
   }
 
@@ -97,10 +100,69 @@ client.on('interactionCreate', async interaction => {
   if (!command) return;
 
   try {
+    await d1.addCommandUse(interaction.commandName);
     await command.execute(interaction, state, d1);
   } catch (error) {
     console.error(error);
     await interaction.reply({ content: 'There was an error while executing this command!', ephemeral: true });
+  }
+});
+
+client.on('messageCreate', async message => {
+  if (!message.guild || message.author.bot) return;
+
+  try {
+    const config = await d1.getGuildConfig(message.guild.id);
+    if (!config.modules.level.enabled) return;
+
+    const xpGain = Math.floor(Math.random() * 11) + 15;
+    const result = await d1.addXp(message.guild.id, message.author.id, xpGain, 60000);
+
+    if (result.awarded && result.leveledUp) {
+      await message.channel.send(
+        `🎉 ${message.author} reached level **${result.level}** with **${result.totalXp} XP**!`,
+      );
+    }
+  } catch (error) {
+    console.error('messageCreate level handler failed:', error);
+  }
+});
+
+client.on('guildMemberAdd', async member => {
+  try {
+    const config = await d1.getGuildConfig(member.guild.id);
+    const welcome = config.modules.welcome;
+    if (!welcome.enabled || !welcome.channelId) return;
+
+    const channel = member.guild.channels.cache.get(welcome.channelId);
+    if (!channel || !channel.isTextBased()) return;
+
+    const text = (welcome.message || 'Welcome {user} to {server}!')
+      .replaceAll('{user}', `<@${member.id}>`)
+      .replaceAll('{server}', member.guild.name);
+
+    await channel.send(text);
+  } catch (error) {
+    console.error('guildMemberAdd handler failed:', error);
+  }
+});
+
+client.on('guildMemberRemove', async member => {
+  try {
+    const config = await d1.getGuildConfig(member.guild.id);
+    const goodbye = config.modules.goodbye;
+    if (!goodbye.enabled || !goodbye.channelId) return;
+
+    const channel = member.guild.channels.cache.get(goodbye.channelId);
+    if (!channel || !channel.isTextBased()) return;
+
+    const text = (goodbye.message || 'Goodbye {user}.')
+      .replaceAll('{user}', `<@${member.id}>`)
+      .replaceAll('{server}', member.guild.name);
+
+    await channel.send(text);
+  } catch (error) {
+    console.error('guildMemberRemove handler failed:', error);
   }
 });
 
