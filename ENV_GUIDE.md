@@ -30,6 +30,10 @@ Per-bot optional env vars:
 - `D1_API_TOKEN`: Cloudflare API Token (with D1 edit permissions)
 - `D1_ACCOUNT_ID`: Cloudflare Account ID
 
+Optional legacy migration:
+
+- `D1_LEGACY_BOT_ID`: Bot id to use when migrating old `user_levels` tables that lack `bot_id`.
+
 Run [`cloudflare/d1-schema.sql`](cloudflare/d1-schema.sql) before first launch.
 
 ### GitHub

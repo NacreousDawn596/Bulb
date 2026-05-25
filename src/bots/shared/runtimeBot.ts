@@ -1,4 +1,4 @@
-import Eris, { Client, Constants, Guild, Message } from "eris";
+import { Client, Constants, Guild, Message } from "eris";
 
 import { BotConfig } from "../../config/bots";
 import { D1Service } from "../../services/d1";
@@ -32,7 +32,7 @@ export class RuntimeBot {
     private readonly dependencies: RuntimeBotDependencies,
   ) {
     this.identityAccent = config.accent ?? "default";
-    this.client = new Eris.Client(config.token ?? "", {
+    this.client = new Client(config.token ?? "", {
       intents: [
         Constants.Intents.guilds,
         Constants.Intents.guildMembers,

@@ -19,7 +19,7 @@ const command: RuntimeCommandModule = {
     );
   },
   async executeSlash(context) {
-    await command.executeMessage({
+    await command.executeMessage!({
       args: [],
       botId: context.botId,
       commands: context.commands,

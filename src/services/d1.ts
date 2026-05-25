@@ -137,6 +137,8 @@ export class D1Service {
   }
 
   async initSchema(): Promise<void> {
+    await this.migrateLegacyUserLevels();
+    await this.migrateLegacyStats();
     const schema = await Bun.file("cloudflare/d1-schema.sql").text();
     const statements = schema
       .split(/;\s*(?:\r?\n|$)/)
@@ -148,6 +150,177 @@ export class D1Service {
     }
 
     this.logger.info("D1 schema ready");
+  }
+
+  private resolveLegacyBotId(): string | null {
+    const explicit = process.env.D1_LEGACY_BOT_ID;
+    if (explicit) {
+      return explicit;
+    }
+
+    const tokenKeys = Object.keys(process.env).filter(
+      (key) => key.startsWith("BOT_") && key.endsWith("_TOKEN") && process.env[key],
+    );
+    const botIds = Array.from(
+      new Set(tokenKeys.map((key) => key.slice(4, -6).toLowerCase())),
+    );
+
+    return botIds.length === 1 ? botIds[0] : null;
+  }
+
+  private async migrateLegacyUserLevels(): Promise<void> {
+    const columns = await this.query("PRAGMA table_info(user_levels)");
+    if (columns.length === 0) {
+      return;
+    }
+
+    const columnNames = new Set(columns.map((column) => String(column.name ?? "")));
+    const pkColumns = columns
+      .filter((column) => Number(column.pk ?? 0) > 0)
+      .sort((left, right) => Number(left.pk ?? 0) - Number(right.pk ?? 0))
+      .map((column) => String(column.name ?? ""));
+
+    const hasBotId = columnNames.has("bot_id");
+    const hasExpectedPk =
+      pkColumns.length === 3 &&
+      pkColumns[0] === "bot_id" &&
+      pkColumns[1] === "guild_id" &&
+      pkColumns[2] === "user_id";
+
+    if (hasBotId && hasExpectedPk) {
+      return;
+    }
+
+    const legacyBotId = this.resolveLegacyBotId();
+    if (!legacyBotId) {
+      this.logger.error("Legacy user_levels table detected but no bot id available for migration", {
+        hint: "Set D1_LEGACY_BOT_ID or ensure exactly one BOT_*_TOKEN is set.",
+      });
+      throw new Error("Legacy user_levels migration requires D1_LEGACY_BOT_ID or a single BOT_*_TOKEN.");
+    }
+
+    this.logger.warn("Legacy user_levels table detected. Migrating to include bot_id.", {
+      legacyBotId,
+    });
+
+    await this.query("ALTER TABLE user_levels RENAME TO user_levels_legacy");
+    await this.query(
+      `
+        CREATE TABLE user_levels (
+          bot_id TEXT NOT NULL,
+          guild_id TEXT NOT NULL,
+          user_id TEXT NOT NULL,
+          xp INTEGER NOT NULL DEFAULT 0,
+          total_xp INTEGER NOT NULL DEFAULT 0,
+          level INTEGER NOT NULL DEFAULT 1,
+          last_xp_at INTEGER NOT NULL DEFAULT 0,
+          PRIMARY KEY (bot_id, guild_id, user_id)
+        )
+      `,
+    );
+    await this.query(
+      `
+        INSERT INTO user_levels (
+          bot_id,
+          guild_id,
+          user_id,
+          xp,
+          total_xp,
+          level,
+          last_xp_at
+        )
+        SELECT ?, guild_id, user_id, xp, total_xp, level, last_xp_at
+        FROM user_levels_legacy
+      `,
+      [legacyBotId],
+    );
+    await this.query("DROP TABLE user_levels_legacy");
+    await this.query(
+      "CREATE INDEX IF NOT EXISTS idx_user_levels_bot_guild_total_xp ON user_levels(bot_id, guild_id, total_xp DESC)",
+    );
+  }
+
+  private async migrateLegacyStats(): Promise<void> {
+    const columns = await this.query("PRAGMA table_info(stats)");
+    if (columns.length === 0) {
+      return;
+    }
+
+    const columnNames = new Set(columns.map((column) => String(column.name ?? "")));
+    const pkColumns = columns
+      .filter((column) => Number(column.pk ?? 0) > 0)
+      .sort((left, right) => Number(left.pk ?? 0) - Number(right.pk ?? 0))
+      .map((column) => String(column.name ?? ""));
+
+    const hasExpectedColumns =
+      columnNames.has("bot_id") &&
+      columnNames.has("stat_key") &&
+      columnNames.has("stat_value") &&
+      columnNames.has("updated_at");
+    const hasExpectedPk =
+      pkColumns.length === 2 && pkColumns[0] === "bot_id" && pkColumns[1] === "stat_key";
+
+    if (hasExpectedColumns && hasExpectedPk) {
+      return;
+    }
+
+    const legacyBotId = this.resolveLegacyBotId();
+    if (!legacyBotId) {
+      this.logger.error("Legacy stats table detected but no bot id available for migration", {
+        hint: "Set D1_LEGACY_BOT_ID or ensure exactly one BOT_*_TOKEN is set.",
+      });
+      throw new Error("Legacy stats migration requires D1_LEGACY_BOT_ID or a single BOT_*_TOKEN.");
+    }
+
+    if (!columnNames.has("stat_key") && !columnNames.has("key")) {
+      throw new Error("Legacy stats table is missing a stat_key column.");
+    }
+    if (!columnNames.has("stat_value") && !columnNames.has("value")) {
+      throw new Error("Legacy stats table is missing a stat_value column.");
+    }
+
+    const keyColumn = columnNames.has("stat_key") ? "stat_key" : '"key"';
+    const valueColumn = columnNames.has("stat_value") ? "stat_value" : '"value"';
+    const hasUpdatedAt = columnNames.has("updated_at");
+
+    this.logger.warn("Legacy stats table detected. Migrating to include bot_id.", {
+      legacyBotId,
+    });
+
+    await this.query("ALTER TABLE stats RENAME TO stats_legacy");
+    await this.query(
+      `
+        CREATE TABLE stats (
+          bot_id TEXT NOT NULL,
+          stat_key TEXT NOT NULL,
+          stat_value TEXT NOT NULL,
+          updated_at INTEGER NOT NULL,
+          PRIMARY KEY (bot_id, stat_key)
+        )
+      `,
+    );
+
+    if (hasUpdatedAt) {
+      await this.query(
+        `
+          INSERT INTO stats (bot_id, stat_key, stat_value, updated_at)
+          SELECT ?, ${keyColumn}, ${valueColumn}, updated_at
+          FROM stats_legacy
+        `,
+        [legacyBotId],
+      );
+    } else {
+      await this.query(
+        `
+          INSERT INTO stats (bot_id, stat_key, stat_value, updated_at)
+          SELECT ?, ${keyColumn}, ${valueColumn}, ?
+          FROM stats_legacy
+        `,
+        [legacyBotId, Date.now()],
+      );
+    }
+
+    await this.query("DROP TABLE stats_legacy");
   }
 
   async upsertBot(config: BotConfig, state: BotRuntimeState): Promise<void> {
